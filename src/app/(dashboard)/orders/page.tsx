@@ -62,8 +62,8 @@ export default function OrdersPage() {
 
       <div className="card overflow-hidden animate-fade-in-up stagger-1">
         {/* Filters */}
-        <div className="p-4 border-b border-black/[0.04] flex flex-wrap gap-3 bg-cream/50">
-          <div className="relative flex-1 min-w-[220px]">
+        <div className="p-4 border-b border-black/[0.04] flex flex-col md:flex-row gap-3 bg-cream/50">
+          <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-sand" />
             <input
               type="text"
@@ -73,28 +73,63 @@ export default function OrdersPage() {
               className="input-field pl-10"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-muted font-medium">From</span>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
-              className="input-field !w-auto"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-muted font-medium">To</span>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
-              className="input-field !w-auto"
-            />
+          <div className="flex gap-3">
+            <div className="flex items-center gap-2 flex-1 md:flex-none">
+              <span className="text-xs text-slate-muted font-medium">From</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+                className="input-field !w-auto flex-1"
+              />
+            </div>
+            <div className="flex items-center gap-2 flex-1 md:flex-none">
+              <span className="text-xs text-slate-muted font-medium">To</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+                className="input-field !w-auto flex-1"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-black/[0.04]">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="skeleton h-4 w-3/4 mb-2" />
+                <div className="skeleton h-3 w-1/2" />
+              </div>
+            ))
+          ) : orders.length === 0 ? (
+            <div className="py-12 text-center text-slate-muted">No orders found</div>
+          ) : (
+            orders.map((order, i) => (
+              <Link
+                key={order.id}
+                href={`/orders/${order.id}`}
+                className="block p-4 hover:bg-cream/60 transition-colors animate-fade-in"
+                style={{ animationDelay: `${i * 0.03}s` }}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-emerald-mid">Order #{order.id}</span>
+                  <span className="text-sm font-bold text-charcoal">{formatCurrency(order.total_amount)}</span>
+                </div>
+                <p className="text-sm text-charcoal">{order.pharmacy_name}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-xs text-slate-muted">{formatDateTime(order.created_at)}</span>
+                  <span className="badge badge-slate">{order.item_count} items</span>
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>

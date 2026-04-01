@@ -76,7 +76,49 @@ export default function UsersPage() {
       </div>
 
       <div className="card overflow-hidden animate-fade-in-up stagger-1">
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-black/[0.04]">
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="skeleton h-4 w-3/4 mb-2" />
+                <div className="skeleton h-3 w-1/2" />
+              </div>
+            ))
+          ) : (
+            users.map((user, i) => (
+              <div
+                key={user.id}
+                className="flex items-center justify-between p-4 animate-fade-in"
+                style={{ animationDelay: `${i * 0.05}s` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-deep flex items-center justify-center text-white text-xs font-bold uppercase">
+                    {user.username.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">{user.username}</p>
+                    <div className="mt-1">{roleBadge(user.access)}</div>
+                  </div>
+                </div>
+                {user.id !== session.userId ? (
+                  <button
+                    onClick={() => setDeleteId(user.id)}
+                    className="p-2 rounded-lg text-slate-muted hover:text-terracotta hover:bg-terracotta-light transition-all duration-200"
+                    title="Delete user"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <span className="text-xs text-sand italic">You</span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>

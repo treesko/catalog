@@ -71,8 +71,8 @@ export default function ProductsPage() {
 
       <div className="card overflow-hidden animate-fade-in-up stagger-1">
         {/* Filters */}
-        <div className="p-4 border-b border-black/[0.04] flex flex-wrap gap-3 bg-cream/50">
-          <div className="relative flex-1 min-w-[220px]">
+        <div className="p-4 border-b border-black/[0.04] flex flex-col md:flex-row gap-3 bg-cream/50">
+          <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-sand" />
             <input
               type="text"
@@ -82,30 +82,73 @@ export default function ProductsPage() {
               className="input-field pl-10"
             />
           </div>
-          <select
-            value={category}
-            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-            className="input-field !w-auto min-w-[160px]"
-          >
-            <option value="">All Categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <select
-            value={stockFilter}
-            onChange={(e) => { setStockFilter(e.target.value); setPage(1); }}
-            className="input-field !w-auto min-w-[140px]"
-          >
-            <option value="">All Stock</option>
-            <option value="in">In Stock</option>
-            <option value="low">Low Stock</option>
-            <option value="out">Out of Stock</option>
-          </select>
+          <div className="flex gap-3">
+            <select
+              value={category}
+              onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+              className="input-field !w-auto flex-1 md:flex-none md:min-w-[160px]"
+            >
+              <option value="">All Categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            <select
+              value={stockFilter}
+              onChange={(e) => { setStockFilter(e.target.value); setPage(1); }}
+              className="input-field !w-auto flex-1 md:flex-none md:min-w-[140px]"
+            >
+              <option value="">All Stock</option>
+              <option value="in">In Stock</option>
+              <option value="low">Low Stock</option>
+              <option value="out">Out of Stock</option>
+            </select>
+          </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-black/[0.04]">
+          {loading ? (
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="skeleton h-4 w-3/4 mb-2" />
+                <div className="skeleton h-3 w-1/2" />
+              </div>
+            ))
+          ) : products.length === 0 ? (
+            <div className="py-12 text-center text-slate-muted">No products found</div>
+          ) : (
+            products.map((product, i) => (
+              <Link
+                key={product.product_id}
+                href={`/products/${product.product_id}`}
+                className="flex items-start gap-3 p-4 hover:bg-cream/60 transition-colors animate-fade-in"
+                style={{ animationDelay: `${i * 0.03}s` }}
+              >
+                {product.image ? (
+                  <img src={product.image} alt={product.product_name} className="w-12 h-12 rounded-xl object-cover bg-cream-dark flex-shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-cream-dark flex items-center justify-center text-sand flex-shrink-0">
+                    <Package className="w-5 h-5" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-charcoal truncate">{product.product_name}</p>
+                    <p className="text-sm font-bold text-charcoal flex-shrink-0">{formatCurrency(product.price)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {product.category && <span className="badge badge-slate">{product.category}</span>}
+                    {stockBadge(product.stock)}
+                  </div>
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>

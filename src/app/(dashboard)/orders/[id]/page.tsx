@@ -91,7 +91,31 @@ export default function OrderDetailPage({
         <div className="px-6 py-4 border-b border-black/[0.04]">
           <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-muted">Order Items</h3>
         </div>
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-black/[0.04]">
+          {order.items.map((item) => (
+            <div key={item.id} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-charcoal">{item.product_name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="badge badge-slate">{item.quantity}x</span>
+                    <span className="text-xs text-slate-muted">@ {formatCurrency(item.price)}</span>
+                    {item.discount > 0 && (
+                      <span className="text-xs text-terracotta">-{formatCurrency(item.discount)}</span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-charcoal flex-shrink-0">
+                  {formatCurrency(item.quantity * item.price - item.discount)}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>

@@ -53,8 +53,8 @@ export default function PharmaciesPage() {
 
       <div className="card overflow-hidden animate-fade-in-up stagger-1">
         {/* Filters */}
-        <div className="p-4 border-b border-black/[0.04] flex flex-wrap gap-3 bg-cream/50">
-          <div className="relative flex-1 min-w-[220px]">
+        <div className="p-4 border-b border-black/[0.04] flex flex-col md:flex-row gap-3 bg-cream/50">
+          <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-sand" />
             <input
               type="text"
@@ -67,7 +67,7 @@ export default function PharmaciesPage() {
           <select
             value={city}
             onChange={(e) => { setCity(e.target.value); setPage(1); }}
-            className="input-field !w-auto min-w-[180px]"
+            className="input-field !w-auto md:min-w-[180px]"
           >
             <option value="">All Cities</option>
             {cities.map((c) => (
@@ -76,8 +76,45 @@ export default function PharmaciesPage() {
           </select>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
+        {/* Mobile cards */}
+        <div className="md:hidden divide-y divide-black/[0.04]">
+          {loading ? (
+            Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="p-4">
+                <div className="skeleton h-4 w-3/4 mb-2" />
+                <div className="skeleton h-3 w-1/2" />
+              </div>
+            ))
+          ) : pharmacies.length === 0 ? (
+            <div className="py-12 text-center text-slate-muted">No pharmacies found</div>
+          ) : (
+            pharmacies.map((pharmacy, i) => (
+              <div
+                key={pharmacy.id}
+                className="p-4 animate-fade-in"
+                style={{ animationDelay: `${i * 0.02}s` }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-subtle flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-emerald-mid" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-charcoal">{pharmacy.Barnatoret || "—"}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <span className="badge badge-slate">{pharmacy.Qyteti || "—"}</span>
+                      {pharmacy["Farmacisti Përgjegjës"] && (
+                        <span className="text-xs text-slate-muted truncate">{pharmacy["Farmacisti Përgjegjës"]}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="data-table">
             <thead>
               <tr>
