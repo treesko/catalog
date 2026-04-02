@@ -42,7 +42,7 @@ export default function ProductsPage() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     useSensor(KeyboardSensor)
   );
 
@@ -135,16 +135,18 @@ export default function ProductsPage() {
       display_order: baseOrder + i,
     }));
 
-    // Optimistic update
+    // Optimistic update first, then persist after animation settles
     setProducts(
       reordered.map((p, i) => ({ ...p, display_order: baseOrder + i }))
     );
 
-    await fetch("/api/products/reorder", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ updates }),
-    });
+    setTimeout(() => {
+      fetch("/api/products/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+    }, 150);
   }
 
   async function handlePriceChange(productId: string, newPrice: number) {

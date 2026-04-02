@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { CSSProperties } from "react";
 import { GripVertical, Package } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
@@ -47,11 +48,12 @@ export function SortableProductRow({
     setPriceValue(String(product.price));
   }, [product.price]);
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : undefined,
+    willChange: isDragging ? "transform" : undefined,
   };
 
   function handleOrderBlur() {
@@ -226,11 +228,12 @@ export function SortableProductCard({
     setPriceValue(String(product.price));
   }, [product.price]);
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  const style: CSSProperties = {
+    transform: CSS.Translate.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 10 : undefined,
+    willChange: isDragging ? "transform" : undefined,
   };
 
   function handleOrderBlur() {
