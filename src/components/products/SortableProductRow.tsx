@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Package } from "lucide-react";
@@ -32,6 +32,10 @@ export function SortableProductRow({
     transition,
     isDragging,
   } = useSortable({ id: product.product_id, disabled: !canReorder });
+
+  useEffect(() => {
+    setOrderValue(String(product.display_order));
+  }, [product.display_order]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -156,6 +160,10 @@ export function SortableProductCard({
     transition,
     isDragging,
   } = useSortable({ id: product.product_id, disabled: !canReorder });
+
+  useEffect(() => {
+    setOrderValue(String(product.display_order));
+  }, [product.display_order]);
 
   const style = {
     transform: CSS.Transform.toString(transform),

@@ -33,22 +33,23 @@ export async function GET(
     }
   }
 
-  // Get product names for items
+  // Get product names and shifra for items
   const productIds = [...new Set(items.map((i) => i.product_id))];
-  let productMap: Record<string, string> = {};
+  let productMap: Record<string, { name: string; shifra: number | null }> = {};
   if (productIds.length > 0) {
     const { data: products } = await supabase
       .from("products")
-      .select("product_id, product_name")
+      .select("product_id, product_name, shifra")
       .in("product_id", productIds);
     productMap = Object.fromEntries(
-      (products || []).map((p) => [p.product_id, p.product_name])
+      (products || []).map((p) => [p.product_id, { name: p.product_name, shifra: p.shifra }])
     );
   }
 
   const enrichedItems = items.map((i) => ({
     ...i,
-    product_name: productMap[i.product_id] || i.product_id,
+    product_name: productMap[i.product_id]?.name || i.product_id,
+    shifra: productMap[i.product_id]?.shifra ?? null,
   }));
 
   return NextResponse.json({

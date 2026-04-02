@@ -18,6 +18,7 @@ interface OrderDetail {
     id: number;
     product_id: string;
     product_name: string;
+    shifra: number | null;
     quantity: number;
     price: number;
     discount: number;
@@ -98,6 +99,9 @@ export default function OrderDetailPage({
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-medium text-charcoal">{item.product_name}</p>
+                  {item.shifra != null && (
+                    <p className="text-xs text-slate-muted font-mono">Shifra: {item.shifra}</p>
+                  )}
                   <div className="flex items-center gap-2 mt-1">
                     <span className="badge badge-slate">{item.quantity}x</span>
                     <span className="text-xs text-slate-muted">@ {formatCurrency(item.price)}</span>
@@ -120,6 +124,7 @@ export default function OrderDetailPage({
             <thead>
               <tr>
                 <th>Product</th>
+                <th>Shifra</th>
                 <th>Qty</th>
                 <th>Unit Price</th>
                 <th>Discount</th>
@@ -133,6 +138,7 @@ export default function OrderDetailPage({
                     <p className="text-sm font-medium text-charcoal">{item.product_name}</p>
                     <p className="text-xs text-slate-muted">ID: {item.product_id}</p>
                   </td>
+                  <td className="text-sm font-mono text-slate-muted">{item.shifra ?? "—"}</td>
                   <td><span className="badge badge-slate">{item.quantity}</span></td>
                   <td className="text-sm text-slate-muted">{formatCurrency(item.price)}</td>
                   <td className="text-sm text-slate-muted">{formatCurrency(item.discount)}</td>
