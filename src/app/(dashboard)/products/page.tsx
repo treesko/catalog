@@ -80,45 +80,30 @@ export default function ProductsPage() {
 
     const oldOrder = currentProduct.display_order;
 
-    // Fetch ALL products to compute global shift (not just current page)
+    // Fetch ALL products sorted by display_order
     const res = await fetch("/api/products?page=1&pageSize=1000");
     const { data: allProducts } = await res.json() as { data: { product_id: string; display_order: number }[] };
+    const sorted = [...allProducts].sort((a, b) => a.display_order - b.display_order);
 
-    // Clamp to valid range: 1 to total products
-    const maxOrder = allProducts.length;
-    const clampedOrder = Math.max(1, Math.min(newOrder, maxOrder));
-    if (clampedOrder === oldOrder) return;
+    // Clamp target position to valid range
+    const targetIndex = Math.max(0, Math.min(newOrder - 1, sorted.length - 1));
+    const currentIndex = sorted.findIndex((p) => p.product_id === productId);
+    if (currentIndex === -1 || currentIndex === targetIndex) return;
 
-    // Shift/insert: move product to clampedOrder, shift everything in between
-    const updates: { product_id: string; display_order: number }[] = [];
-
-    if (clampedOrder < oldOrder) {
-      for (const p of allProducts) {
-        if (p.product_id === productId) {
-          updates.push({ product_id: p.product_id, display_order: clampedOrder });
-        } else if (p.display_order >= clampedOrder && p.display_order < oldOrder) {
-          updates.push({ product_id: p.product_id, display_order: p.display_order + 1 });
-        }
-      }
-    } else {
-      for (const p of allProducts) {
-        if (p.product_id === productId) {
-          updates.push({ product_id: p.product_id, display_order: clampedOrder });
-        } else if (p.display_order > oldOrder && p.display_order <= clampedOrder) {
-          updates.push({ product_id: p.product_id, display_order: p.display_order - 1 });
-        }
-      }
-    }
+    // Same logic as drag-and-drop: remove, insert, renumber sequentially
+    const reordered = arrayMove(sorted, currentIndex, targetIndex);
+    const updates = reordered.map((p, i) => ({
+      product_id: p.product_id,
+      display_order: i + 1,
+    }));
 
     // Optimistic update for current page
-    setProducts((prev) =>
-      prev
-        .map((p) => {
-          const update = updates.find((u) => u.product_id === p.product_id);
-          return update ? { ...p, display_order: update.display_order } : p;
-        })
-        .sort((a, b) => a.display_order - b.display_order)
-    );
+    setProducts((prev) => {
+      const updateMap = new Map(updates.map((u) => [u.product_id, u.display_order]));
+      return prev
+        .map((p) => ({ ...p, display_order: updateMap.get(p.product_id) ?? p.display_order }))
+        .sort((a, b) => a.display_order - b.display_order);
+    });
 
     await fetch("/api/products/reorder", {
       method: "PUT",
@@ -126,7 +111,7 @@ export default function ProductsPage() {
       body: JSON.stringify({ updates }),
     });
 
-    // Refetch current page to get correct data after global shift
+    // Refetch current page to stay in sync
     fetchProducts();
   }
 
