@@ -84,22 +84,27 @@ export default function ProductsPage() {
     const res = await fetch("/api/products?page=1&pageSize=1000");
     const { data: allProducts } = await res.json() as { data: { product_id: string; display_order: number }[] };
 
-    // Shift/insert: move product to newOrder, shift everything in between
+    // Clamp to valid range: 1 to total products
+    const maxOrder = allProducts.length;
+    const clampedOrder = Math.max(1, Math.min(newOrder, maxOrder));
+    if (clampedOrder === oldOrder) return;
+
+    // Shift/insert: move product to clampedOrder, shift everything in between
     const updates: { product_id: string; display_order: number }[] = [];
 
-    if (newOrder < oldOrder) {
+    if (clampedOrder < oldOrder) {
       for (const p of allProducts) {
         if (p.product_id === productId) {
-          updates.push({ product_id: p.product_id, display_order: newOrder });
-        } else if (p.display_order >= newOrder && p.display_order < oldOrder) {
+          updates.push({ product_id: p.product_id, display_order: clampedOrder });
+        } else if (p.display_order >= clampedOrder && p.display_order < oldOrder) {
           updates.push({ product_id: p.product_id, display_order: p.display_order + 1 });
         }
       }
     } else {
       for (const p of allProducts) {
         if (p.product_id === productId) {
-          updates.push({ product_id: p.product_id, display_order: newOrder });
-        } else if (p.display_order > oldOrder && p.display_order <= newOrder) {
+          updates.push({ product_id: p.product_id, display_order: clampedOrder });
+        } else if (p.display_order > oldOrder && p.display_order <= clampedOrder) {
           updates.push({ product_id: p.product_id, display_order: p.display_order - 1 });
         }
       }
