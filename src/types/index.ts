@@ -7,6 +7,7 @@ export interface Product {
   price: number;
   barcode: string | null;
   stock: number;
+  display_order: number;
 }
 
 export interface Order {

@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, count, error } = await query
+    .order("display_order")
     .order("product_name")
     .range(from, to);
 
@@ -44,6 +45,15 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json();
   const supabase = createServerClient();
+
+  // Assign next display_order
+  const { data: maxRow } = await supabase
+    .from("products")
+    .select("display_order")
+    .order("display_order", { ascending: false })
+    .limit(1)
+    .single();
+  body.display_order = (maxRow?.display_order || 0) + 1;
 
   const { data, error } = await supabase
     .from("products")

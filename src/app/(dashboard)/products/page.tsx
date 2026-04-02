@@ -2,10 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { Plus, Search, Package } from "lucide-react";
+import { Plus, Search, Info } from "lucide-react";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
 import { useSession } from "@/components/layout/SessionProvider";
 import { canManageProducts } from "@/lib/roles";
 import { formatCurrency } from "@/lib/utils";
+import { SortableProductRow, SortableProductCard } from "@/components/products/SortableProductRow";
 import type { Product } from "@/types";
 
 export default function ProductsPage() {
@@ -19,6 +35,16 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const pageSize = 10;
+
+  const canEdit = canManageProducts(session.access);
+  const filtersActive = !!(search || category || stockFilter);
+  const canReorder = canEdit && !filtersActive;
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
 
   useEffect(() => {
     fetch("/api/products/categories")
@@ -48,11 +74,72 @@ export default function ProductsPage() {
 
   const totalPages = Math.ceil(total / pageSize);
 
+  async function handleOrderChange(productId: string, newOrder: number) {
+    const currentProduct = products.find((p) => p.product_id === productId);
+    if (!currentProduct || currentProduct.display_order === newOrder) return;
+
+    const targetProduct = products.find((p) => p.display_order === newOrder);
+    const updates: { product_id: string; display_order: number }[] = [
+      { product_id: productId, display_order: newOrder },
+    ];
+    if (targetProduct) {
+      updates.push({
+        product_id: targetProduct.product_id,
+        display_order: currentProduct.display_order,
+      });
+    }
+
+    // Optimistic update
+    setProducts((prev) =>
+      prev
+        .map((p) => {
+          const update = updates.find((u) => u.product_id === p.product_id);
+          return update ? { ...p, display_order: update.display_order } : p;
+        })
+        .sort((a, b) => a.display_order - b.display_order)
+    );
+
+    await fetch("/api/products/reorder", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    });
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = products.findIndex((p) => p.product_id === active.id);
+    const newIndex = products.findIndex((p) => p.product_id === over.id);
+    const reordered = arrayMove(products, oldIndex, newIndex);
+
+    // Reassign display_order values based on new positions
+    const baseOrder = (page - 1) * pageSize + 1;
+    const updates = reordered.map((p, i) => ({
+      product_id: p.product_id,
+      display_order: baseOrder + i,
+    }));
+
+    // Optimistic update
+    setProducts(
+      reordered.map((p, i) => ({ ...p, display_order: baseOrder + i }))
+    );
+
+    await fetch("/api/products/reorder", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ updates }),
+    });
+  }
+
   function stockBadge(stock: number) {
     if (stock === 0) return <span className="badge badge-terracotta">Out of stock</span>;
     if (stock < 10) return <span className="badge badge-amber">{stock} left</span>;
     return <span className="badge badge-emerald">{stock} in stock</span>;
   }
+
+  const productIds = products.map((p) => p.product_id);
 
   return (
     <div className="space-y-6">
@@ -61,7 +148,7 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-charcoal tracking-tight">Products</h1>
           <p className="text-sm text-slate-muted mt-0.5">{total} total products in catalog</p>
         </div>
-        {canManageProducts(session.access) && (
+        {canEdit && (
           <Link href="/products/new" className="btn-primary">
             <Plus className="w-4 h-4" />
             Add Product
@@ -106,121 +193,78 @@ export default function ProductsPage() {
           </div>
         </div>
 
-        {/* Mobile cards */}
-        <div className="md:hidden divide-y divide-black/[0.04]">
-          {loading ? (
-            Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="p-4">
+        {/* Filter active notice */}
+        {canEdit && filtersActive && (
+          <div className="px-4 py-2.5 bg-amber-light/50 border-b border-amber-warm/20 flex items-center gap-2">
+            <Info className="w-3.5 h-3.5 text-amber-warm flex-shrink-0" />
+            <span className="text-xs text-amber-warm font-medium">Clear filters to enable drag-and-drop reordering</span>
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading ? (
+          <div className="divide-y divide-black/[0.04]">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="p-4 md:px-5">
                 <div className="skeleton h-4 w-3/4 mb-2" />
                 <div className="skeleton h-3 w-1/2" />
               </div>
-            ))
-          ) : products.length === 0 ? (
-            <div className="py-12 text-center text-slate-muted">No products found</div>
-          ) : (
-            products.map((product, i) => (
-              <Link
-                key={product.product_id}
-                href={`/products/${product.product_id}`}
-                className="flex items-start gap-3 p-4 hover:bg-cream/60 transition-colors animate-fade-in"
-                style={{ animationDelay: `${i * 0.03}s` }}
-              >
-                {product.image ? (
-                  <img src={product.image} alt={product.product_name} className="w-12 h-12 rounded-xl object-cover bg-cream-dark flex-shrink-0" />
-                ) : (
-                  <div className="w-12 h-12 rounded-xl bg-cream-dark flex items-center justify-center text-sand flex-shrink-0">
-                    <Package className="w-5 h-5" />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold text-charcoal truncate">{product.product_name}</p>
-                    <p className="text-sm font-bold text-charcoal flex-shrink-0">{formatCurrency(product.price)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    {product.category && <span className="badge badge-slate">{product.category}</span>}
-                    {stockBadge(product.stock)}
-                  </div>
-                </div>
-              </Link>
-            ))
-          )}
-        </div>
-
-        {/* Desktop table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Product</th>
-                <th>Category</th>
-                <th>Price</th>
-                <th>Barcode</th>
-                <th>Stock</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={5} className="!py-5 !px-5">
-                      <div className="skeleton h-4 w-3/4" />
-                    </td>
-                  </tr>
-                ))
-              ) : products.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="!py-12 text-center text-slate-muted">
-                    No products found
-                  </td>
-                </tr>
-              ) : (
-                products.map((product, i) => (
-                  <tr
+            ))}
+          </div>
+        ) : products.length === 0 ? (
+          <div className="py-12 text-center text-slate-muted">No products found</div>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={canReorder ? handleDragEnd : undefined}
+          >
+            <SortableContext items={productIds} strategy={verticalListSortingStrategy}>
+              {/* Mobile cards */}
+              <div className="md:hidden">
+                {products.map((product, i) => (
+                  <div
                     key={product.product_id}
-                    className="table-row-hover animate-fade-in"
+                    className="animate-fade-in"
                     style={{ animationDelay: `${i * 0.03}s` }}
                   >
-                    <td>
-                      <Link
-                        href={`/products/${product.product_id}`}
-                        className="flex items-center gap-3 group"
-                      >
-                        {product.image ? (
-                          <img
-                            src={product.image}
-                            alt={product.product_name}
-                            className="w-10 h-10 rounded-xl object-cover bg-cream-dark"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-cream-dark flex items-center justify-center text-sand">
-                            <Package className="w-4 h-4" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-semibold text-charcoal group-hover:text-emerald-mid transition-colors">
-                            {product.product_name}
-                          </p>
-                          <p className="text-xs text-slate-muted">ID: {product.product_id}</p>
-                        </div>
-                      </Link>
-                    </td>
-                    <td>
-                      {product.category ? (
-                        <span className="badge badge-slate">{product.category}</span>
-                      ) : (
-                        <span className="text-sand">—</span>
-                      )}
-                    </td>
-                    <td className="font-semibold text-charcoal">{formatCurrency(product.price)}</td>
-                    <td className="font-mono text-xs text-slate-muted">{product.barcode || "—"}</td>
-                    <td>{stockBadge(product.stock)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <SortableProductCard
+                      product={product}
+                      canReorder={canReorder}
+                      onOrderChange={handleOrderChange}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th className="!w-[90px]">#</th>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th>Price</th>
+                      <th>Barcode</th>
+                      <th>Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map((product, i) => (
+                      <SortableProductRow
+                        key={product.product_id}
+                        product={product}
+                        canReorder={canReorder}
+                        onOrderChange={handleOrderChange}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </SortableContext>
+          </DndContext>
+        )}
 
         {/* Pagination */}
         {totalPages > 1 && (
