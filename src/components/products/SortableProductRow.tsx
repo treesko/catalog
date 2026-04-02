@@ -109,6 +109,7 @@ export function SortableProductRow({
           {canReorder ? (
             <input
               type="number"
+              inputMode="numeric"
               min="1"
               value={orderValue}
               onChange={(e) => setOrderValue(e.target.value)}
@@ -164,6 +165,7 @@ export function SortableProductRow({
         {editingPrice && canEdit ? (
           <input
             type="number"
+            inputMode="decimal"
             step="0.01"
             min="0"
             value={priceValue}
@@ -323,6 +325,7 @@ export function SortableProductCard({
           {canReorder ? (
             <input
               type="number"
+              inputMode="numeric"
               min="1"
               value={orderValue}
               onChange={(e) => { e.preventDefault(); e.stopPropagation(); setOrderValue(e.target.value); }}
