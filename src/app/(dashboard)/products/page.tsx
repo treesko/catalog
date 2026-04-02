@@ -78,15 +78,29 @@ export default function ProductsPage() {
     const currentProduct = products.find((p) => p.product_id === productId);
     if (!currentProduct || currentProduct.display_order === newOrder) return;
 
-    const targetProduct = products.find((p) => p.display_order === newOrder);
-    const updates: { product_id: string; display_order: number }[] = [
-      { product_id: productId, display_order: newOrder },
-    ];
-    if (targetProduct) {
-      updates.push({
-        product_id: targetProduct.product_id,
-        display_order: currentProduct.display_order,
-      });
+    const oldOrder = currentProduct.display_order;
+
+    // Shift/insert: move product to newOrder, shift everything in between
+    const updates: { product_id: string; display_order: number }[] = [];
+
+    if (newOrder < oldOrder) {
+      // Moving up: shift products between [newOrder, oldOrder-1] down by 1
+      for (const p of products) {
+        if (p.product_id === productId) {
+          updates.push({ product_id: p.product_id, display_order: newOrder });
+        } else if (p.display_order >= newOrder && p.display_order < oldOrder) {
+          updates.push({ product_id: p.product_id, display_order: p.display_order + 1 });
+        }
+      }
+    } else {
+      // Moving down: shift products between [oldOrder+1, newOrder] up by 1
+      for (const p of products) {
+        if (p.product_id === productId) {
+          updates.push({ product_id: p.product_id, display_order: newOrder });
+        } else if (p.display_order > oldOrder && p.display_order <= newOrder) {
+          updates.push({ product_id: p.product_id, display_order: p.display_order - 1 });
+        }
+      }
     }
 
     // Optimistic update
