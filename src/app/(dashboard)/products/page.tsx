@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Plus, Search, Info } from "lucide-react";
 import {
@@ -34,6 +34,7 @@ export default function ProductsPage() {
   const [stockFilter, setStockFilter] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const reorderingRef = useRef(false);
   const pageSize = 10;
 
   const canEdit = canManageProducts(session.access);
@@ -59,7 +60,7 @@ export default function ProductsPage() {
     if (category) params.set("category", category);
     if (stockFilter) params.set("stock", stockFilter);
 
-    fetch(`/api/products?${params}`)
+    return fetch(`/api/products?${params}`)
       .then((res) => res.json())
       .then((data) => {
         setProducts(data.data || []);
@@ -75,8 +76,12 @@ export default function ProductsPage() {
   const totalPages = Math.ceil(total / pageSize);
 
   async function handleOrderChange(productId: string, newOrder: number) {
+    if (reorderingRef.current) return;
+    reorderingRef.current = true;
+
+    try {
     const currentProduct = products.find((p) => p.product_id === productId);
-    if (!currentProduct || currentProduct.display_order === newOrder) return;
+    if (!currentProduct || currentProduct.display_order === newOrder) { reorderingRef.current = false; return; }
 
     const oldOrder = currentProduct.display_order;
 
@@ -112,12 +117,16 @@ export default function ProductsPage() {
     });
 
     // Refetch current page to stay in sync
-    fetchProducts();
+    await fetchProducts();
+    } finally {
+      reorderingRef.current = false;
+    }
   }
 
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
+    if (!over || active.id === over.id || reorderingRef.current) return;
+    reorderingRef.current = true;
 
     const oldIndex = products.findIndex((p) => p.product_id === active.id);
     const newIndex = products.findIndex((p) => p.product_id === over.id);
@@ -135,12 +144,13 @@ export default function ProductsPage() {
       reordered.map((p, i) => ({ ...p, display_order: baseOrder + i }))
     );
 
-    setTimeout(() => {
-      fetch("/api/products/reorder", {
+    setTimeout(async () => {
+      await fetch("/api/products/reorder", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ updates }),
       });
+      reorderingRef.current = false;
     }, 150);
   }
 
