@@ -133,6 +133,21 @@ export default function ProductsPage() {
     });
   }
 
+  async function handlePriceChange(productId: string, newPrice: number) {
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((p) =>
+        p.product_id === productId ? { ...p, price: newPrice } : p
+      )
+    );
+
+    await fetch(`/api/products/${productId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: newPrice }),
+    });
+  }
+
   function stockBadge(stock: number) {
     if (stock === 0) return <span className="badge badge-terracotta">Out of stock</span>;
     if (stock < 10) return <span className="badge badge-amber">{stock} left</span>;
@@ -231,7 +246,9 @@ export default function ProductsPage() {
                     <SortableProductCard
                       product={product}
                       canReorder={canReorder}
+                      canEdit={canEdit}
                       onOrderChange={handleOrderChange}
+                      onPriceChange={handlePriceChange}
                     />
                   </div>
                 ))}
@@ -256,7 +273,9 @@ export default function ProductsPage() {
                         key={product.product_id}
                         product={product}
                         canReorder={canReorder}
+                        canEdit={canEdit}
                         onOrderChange={handleOrderChange}
+                        onPriceChange={handlePriceChange}
                       />
                     ))}
                   </tbody>

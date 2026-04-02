@@ -17,13 +17,19 @@ function StockBadge({ stock }: { stock: number }) {
 export function SortableProductRow({
   product,
   canReorder,
+  canEdit,
   onOrderChange,
+  onPriceChange,
 }: {
   product: Product;
   canReorder: boolean;
+  canEdit: boolean;
   onOrderChange: (productId: string, newOrder: number) => void;
+  onPriceChange: (productId: string, newPrice: number) => void;
 }) {
   const [orderValue, setOrderValue] = useState(String(product.display_order));
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceValue, setPriceValue] = useState(String(product.price));
   const {
     attributes,
     listeners,
@@ -36,6 +42,10 @@ export function SortableProductRow({
   useEffect(() => {
     setOrderValue(String(product.display_order));
   }, [product.display_order]);
+
+  useEffect(() => {
+    setPriceValue(String(product.price));
+  }, [product.price]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -56,6 +66,25 @@ export function SortableProductRow({
   function handleOrderKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
       (e.target as HTMLInputElement).blur();
+    }
+  }
+
+  function handlePriceBlur() {
+    setEditingPrice(false);
+    const newPrice = parseFloat(priceValue);
+    if (!isNaN(newPrice) && newPrice >= 0 && newPrice !== product.price) {
+      onPriceChange(product.product_id, newPrice);
+    } else {
+      setPriceValue(String(product.price));
+    }
+  }
+
+  function handlePriceKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === "Escape") {
+      setPriceValue(String(product.price));
+      setEditingPrice(false);
     }
   }
 
@@ -131,7 +160,28 @@ export function SortableProductRow({
       </td>
 
       {/* Price */}
-      <td className="font-semibold text-charcoal">{formatCurrency(product.price)}</td>
+      <td>
+        {editingPrice && canEdit ? (
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={priceValue}
+            onChange={(e) => setPriceValue(e.target.value)}
+            onBlur={handlePriceBlur}
+            onKeyDown={handlePriceKey}
+            autoFocus
+            className="w-20 px-2 py-1 text-sm font-semibold border border-emerald-mid rounded-lg focus:ring-2 focus:ring-emerald-mid focus:border-transparent outline-none bg-white"
+          />
+        ) : (
+          <button
+            onClick={() => canEdit && setEditingPrice(true)}
+            className={`text-sm font-semibold ${canEdit ? "text-charcoal hover:text-emerald-mid cursor-pointer hover:bg-emerald-subtle px-2 py-1 -mx-2 -my-1 rounded-lg transition-all" : "text-charcoal cursor-default"}`}
+          >
+            {formatCurrency(product.price)}
+          </button>
+        )}
+      </td>
 
       {/* Barcode */}
       <td className="font-mono text-xs text-slate-muted">{product.barcode || "—"}</td>
@@ -145,13 +195,19 @@ export function SortableProductRow({
 export function SortableProductCard({
   product,
   canReorder,
+  canEdit,
   onOrderChange,
+  onPriceChange,
 }: {
   product: Product;
   canReorder: boolean;
+  canEdit: boolean;
   onOrderChange: (productId: string, newOrder: number) => void;
+  onPriceChange: (productId: string, newPrice: number) => void;
 }) {
   const [orderValue, setOrderValue] = useState(String(product.display_order));
+  const [editingPrice, setEditingPrice] = useState(false);
+  const [priceValue, setPriceValue] = useState(String(product.price));
   const {
     attributes,
     listeners,
@@ -164,6 +220,10 @@ export function SortableProductCard({
   useEffect(() => {
     setOrderValue(String(product.display_order));
   }, [product.display_order]);
+
+  useEffect(() => {
+    setPriceValue(String(product.price));
+  }, [product.price]);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -184,6 +244,25 @@ export function SortableProductCard({
   function handleOrderKey(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
       (e.target as HTMLInputElement).blur();
+    }
+  }
+
+  function handlePriceBlur() {
+    setEditingPrice(false);
+    const newPrice = parseFloat(priceValue);
+    if (!isNaN(newPrice) && newPrice >= 0 && newPrice !== product.price) {
+      onPriceChange(product.product_id, newPrice);
+    } else {
+      setPriceValue(String(product.price));
+    }
+  }
+
+  function handlePriceKey(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      (e.target as HTMLInputElement).blur();
+    } else if (e.key === "Escape") {
+      setPriceValue(String(product.price));
+      setEditingPrice(false);
     }
   }
 
@@ -214,10 +293,31 @@ export function SortableProductCard({
       )}
 
       {/* Content */}
-      <Link href={`/products/${product.product_id}`} className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-semibold text-charcoal truncate">{product.product_name}</p>
-          <p className="text-sm font-bold text-charcoal flex-shrink-0">{formatCurrency(product.price)}</p>
+          <Link href={`/products/${product.product_id}`} className="text-sm font-semibold text-charcoal truncate">
+            {product.product_name}
+          </Link>
+          {editingPrice && canEdit ? (
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={priceValue}
+              onChange={(e) => setPriceValue(e.target.value)}
+              onBlur={handlePriceBlur}
+              onKeyDown={handlePriceKey}
+              autoFocus
+              className="w-20 px-2 py-0.5 text-sm font-bold text-right border border-emerald-mid rounded-lg focus:ring-2 focus:ring-emerald-mid focus:border-transparent outline-none bg-white flex-shrink-0"
+            />
+          ) : (
+            <button
+              onClick={() => canEdit && setEditingPrice(true)}
+              className={`text-sm font-bold flex-shrink-0 ${canEdit ? "text-charcoal active:text-emerald-mid" : "text-charcoal"}`}
+            >
+              {formatCurrency(product.price)}
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           {canReorder ? (
@@ -237,7 +337,7 @@ export function SortableProductCard({
           {product.category && <span className="badge badge-slate">{product.category}</span>}
           <StockBadge stock={product.stock} />
         </div>
-      </Link>
+      </div>
     </div>
   );
 }
