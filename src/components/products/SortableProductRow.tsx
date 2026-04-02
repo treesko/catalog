@@ -108,9 +108,9 @@ export function SortableProductRow({
           )}
           {canReorder ? (
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              min="1"
+              pattern="[0-9]*"
               value={orderValue}
               onChange={(e) => setOrderValue(e.target.value)}
               onBlur={handleOrderBlur}
@@ -164,10 +164,9 @@ export function SortableProductRow({
       <td>
         {editingPrice && canEdit ? (
           <input
-            type="number"
+            type="text"
             inputMode="decimal"
-            step="0.01"
-            min="0"
+            pattern="[0-9]*\.?[0-9]*"
             value={priceValue}
             onChange={(e) => setPriceValue(e.target.value)}
             onBlur={handlePriceBlur}
@@ -324,9 +323,9 @@ export function SortableProductCard({
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
           {canReorder ? (
             <input
-              type="number"
+              type="text"
               inputMode="numeric"
-              min="1"
+              pattern="[0-9]*"
               value={orderValue}
               onChange={(e) => { e.preventDefault(); e.stopPropagation(); setOrderValue(e.target.value); }}
               onBlur={handleOrderBlur}
