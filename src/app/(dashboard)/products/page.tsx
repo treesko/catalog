@@ -80,44 +80,21 @@ export default function ProductsPage() {
     reorderingRef.current = true;
 
     try {
-    const currentProduct = products.find((p) => p.product_id === productId);
-    if (!currentProduct || currentProduct.display_order === newOrder) { reorderingRef.current = false; return; }
+      const currentProduct = products.find((p) => p.product_id === productId);
+      if (!currentProduct || currentProduct.display_order === newOrder) return;
 
-    const oldOrder = currentProduct.display_order;
+      // Single request: server handles fetch, reorder, renumber, and returns updated page
+      const res = await fetch("/api/products/reorder", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId, newPosition: newOrder, page, pageSize }),
+      });
 
-    // Fetch ALL products sorted by display_order
-    const res = await fetch("/api/products?page=1&pageSize=1000");
-    const { data: allProducts } = await res.json() as { data: { product_id: string; display_order: number }[] };
-    const sorted = [...allProducts].sort((a, b) => a.display_order - b.display_order);
-
-    // Clamp target position to valid range
-    const targetIndex = Math.max(0, Math.min(newOrder - 1, sorted.length - 1));
-    const currentIndex = sorted.findIndex((p) => p.product_id === productId);
-    if (currentIndex === -1 || currentIndex === targetIndex) return;
-
-    // Same logic as drag-and-drop: remove, insert, renumber sequentially
-    const reordered = arrayMove(sorted, currentIndex, targetIndex);
-    const updates = reordered.map((p, i) => ({
-      product_id: p.product_id,
-      display_order: i + 1,
-    }));
-
-    // Optimistic update for current page
-    setProducts((prev) => {
-      const updateMap = new Map(updates.map((u) => [u.product_id, u.display_order]));
-      return prev
-        .map((p) => ({ ...p, display_order: updateMap.get(p.product_id) ?? p.display_order }))
-        .sort((a, b) => a.display_order - b.display_order);
-    });
-
-    await fetch("/api/products/reorder", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ updates }),
-    });
-
-    // Refetch current page to stay in sync
-    await fetchProducts();
+      const result = await res.json();
+      if (result.data) {
+        setProducts(result.data);
+        setTotal(result.total);
+      }
     } finally {
       reorderingRef.current = false;
     }
