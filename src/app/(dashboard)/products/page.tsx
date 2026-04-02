@@ -80,12 +80,15 @@ export default function ProductsPage() {
 
     const oldOrder = currentProduct.display_order;
 
+    // Fetch ALL products to compute global shift (not just current page)
+    const res = await fetch("/api/products?page=1&pageSize=1000");
+    const { data: allProducts } = await res.json() as { data: { product_id: string; display_order: number }[] };
+
     // Shift/insert: move product to newOrder, shift everything in between
     const updates: { product_id: string; display_order: number }[] = [];
 
     if (newOrder < oldOrder) {
-      // Moving up: shift products between [newOrder, oldOrder-1] down by 1
-      for (const p of products) {
+      for (const p of allProducts) {
         if (p.product_id === productId) {
           updates.push({ product_id: p.product_id, display_order: newOrder });
         } else if (p.display_order >= newOrder && p.display_order < oldOrder) {
@@ -93,8 +96,7 @@ export default function ProductsPage() {
         }
       }
     } else {
-      // Moving down: shift products between [oldOrder+1, newOrder] up by 1
-      for (const p of products) {
+      for (const p of allProducts) {
         if (p.product_id === productId) {
           updates.push({ product_id: p.product_id, display_order: newOrder });
         } else if (p.display_order > oldOrder && p.display_order <= newOrder) {
@@ -103,7 +105,7 @@ export default function ProductsPage() {
       }
     }
 
-    // Optimistic update
+    // Optimistic update for current page
     setProducts((prev) =>
       prev
         .map((p) => {
@@ -118,6 +120,9 @@ export default function ProductsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ updates }),
     });
+
+    // Refetch current page to get correct data after global shift
+    fetchProducts();
   }
 
   async function handleDragEnd(event: DragEndEvent) {

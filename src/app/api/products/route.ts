@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const category = searchParams.get("category") || "";
   const stockFilter = searchParams.get("stock") || "";
   const page = parseInt(searchParams.get("page") || "1");
-  const pageSize = 10;
+  const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "10"), 1000);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
