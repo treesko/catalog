@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { Plus, Search, Info } from "lucide-react";
+import { Plus, Search, Info, FileDown } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -34,6 +34,7 @@ export default function ProductsPage() {
   const [stockFilter, setStockFilter] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const reorderingRef = useRef(false);
   const pageSize = 10;
 
@@ -146,6 +147,27 @@ export default function ProductsPage() {
     });
   }
 
+  async function handleExportPdf() {
+    setExportingPdf(true);
+    try {
+      const response = await fetch("/api/export-products?title=Product+Catalog");
+      if (!response.ok) throw new Error("Export failed");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `products_catalog_${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("PDF export error:", err);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
   function stockBadge(stock: number) {
     if (stock === 0) return <span className="badge badge-terracotta">Out of stock</span>;
     if (stock < 10) return <span className="badge badge-amber">{stock} left</span>;
@@ -161,12 +183,22 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-charcoal tracking-tight">Products</h1>
           <p className="text-sm text-slate-muted mt-0.5">{total} total products in catalog</p>
         </div>
-        {canEdit && (
-          <Link href="/products/new" className="btn-primary">
-            <Plus className="w-4 h-4" />
-            Add Product
-          </Link>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <FileDown className="w-4 h-4" />
+            {exportingPdf ? "Generating..." : "Export PDF"}
+          </button>
+          {canEdit && (
+            <Link href="/products/new" className="btn-primary">
+              <Plus className="w-4 h-4" />
+              Add Product
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="card overflow-hidden animate-fade-in-up stagger-1">
