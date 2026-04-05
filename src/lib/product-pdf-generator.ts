@@ -28,10 +28,10 @@ const PW      = 595.28;
 const PH      = 841.89;
 const CARD_H  = PH / 2;          // two equal halves per page
 
-const LEFT_W  = 230;             // image column width
-const GUTTER  = 24;              // gap between image and text
+const LEFT_W  = 397;             // image column width (2/3 of page)
+const GUTTER  = 18;              // gap between image and text
 const TEXT_X  = LEFT_W + GUTTER;
-const TEXT_W  = PW - TEXT_X - 32;
+const TEXT_W  = PW - TEXT_X - 20;
 
 // ─── Column Heuristics ────────────────────────────────────────────────────────
 const RX_IMG_EXT  = /\.(jpg|jpeg|png|gif|webp|avif|bmp)(\?.*)?$/i;
@@ -141,9 +141,9 @@ export async function generateProductPDF(
       .strokeColor(C.gray200).lineWidth(0.5).stroke();
 
     // Page number
-    doc.fontSize(8).font("Helvetica").fillColor(C.gray500)
-      .text(String(pageNum), PW - 48, PH - 18, {
-        width: 30, align: "right", lineBreak: false, height: 12,
+    doc.fontSize(7).font("Helvetica").fillColor(C.gray500)
+      .text(String(pageNum), PW - 40, PH - 16, {
+        width: 24, align: "right", lineBreak: false, height: 10,
       });
   }
 
@@ -198,40 +198,40 @@ export async function generateProductPDF(
     const barcodeText = barcodeCol && product[barcodeCol] ? String(product[barcodeCol]) : "";
 
     // Measure name height at correct font
-    doc.fontSize(22).font("Helvetica-Bold");
+    doc.fontSize(16).font("Helvetica-Bold");
     const nameH = nameText
-      ? Math.min(doc.heightOfString(nameText, { width: TEXT_W }), 22 * 3)
+      ? Math.min(doc.heightOfString(nameText, { width: TEXT_W }), 16 * 3)
       : 0;
 
-    const badgeH  = catCol ? 22 + 14 : 0;
-    const sepH    = 14;
-    const descH   = descText ? 44 : 0;
-    const priceH  = priceText ? 36 + 14 : 0;
-    const barcodeImgH = barcodeText ? 44 : 0;
-    const barcodeNumH = barcodeText ? 14 : 0;
-    const totalH = badgeH + nameH + 14 + sepH + descH + (descText ? 14 : 0) + priceH + barcodeImgH + barcodeNumH;
+    const badgeH  = catCol ? 18 + 10 : 0;
+    const sepH    = 10;
+    const descH   = descText ? 36 : 0;
+    const priceH  = priceText ? 28 + 10 : 0;
+    const barcodeImgH = barcodeText ? 38 : 0;
+    const barcodeNumH = barcodeText ? 12 : 0;
+    const totalH = badgeH + nameH + 10 + sepH + descH + (descText ? 10 : 0) + priceH + barcodeImgH + barcodeNumH;
 
-    let ty = cardY + Math.max(24, (CARD_H - totalH) / 2);
+    let ty = cardY + Math.max(20, (CARD_H - totalH) / 2);
 
     // Category badge
     if (catCol && product[catCol]) {
       const catText = String(product[catCol]).toUpperCase();
-      doc.fontSize(7.5).font("Helvetica-Bold");
-      const badgeW = Math.min(doc.widthOfString(catText) + 22, TEXT_W);
+      doc.fontSize(6.5).font("Helvetica-Bold");
+      const badgeW = Math.min(doc.widthOfString(catText) + 18, TEXT_W);
 
-      doc.roundedRect(TEXT_X, ty, badgeW, 22, 4).fill(C.badgeBg);
+      doc.roundedRect(TEXT_X, ty, badgeW, 18, 3).fill(C.badgeBg);
       doc.fillColor(C.badgeText)
-        .text(catText, TEXT_X + 11, ty + 7, {
-          width: badgeW - 22, lineBreak: false, height: 10, characterSpacing: 0.5,
+        .text(catText, TEXT_X + 9, ty + 5.5, {
+          width: badgeW - 18, lineBreak: false, height: 8, characterSpacing: 0.5,
         });
-      ty += 22 + 14;
+      ty += 18 + 10;
     }
 
     // Product name
     if (nameText) {
-      doc.fontSize(22).font("Helvetica-Bold").fillColor(C.gray900)
-        .text(nameText, TEXT_X, ty, { width: TEXT_W, height: 22 * 3, ellipsis: true });
-      ty += nameH + 14;
+      doc.fontSize(16).font("Helvetica-Bold").fillColor(C.gray900)
+        .text(nameText, TEXT_X, ty, { width: TEXT_W, height: 16 * 3, ellipsis: true });
+      ty += nameH + 10;
     }
 
     // Separator
@@ -240,16 +240,16 @@ export async function generateProductPDF(
 
     // Description
     if (descText) {
-      doc.fontSize(9).font("Helvetica").fillColor(C.gray500)
-        .text(descText, TEXT_X, ty, { width: TEXT_W, height: 44, ellipsis: true });
-      ty += 44 + 14;
+      doc.fontSize(8).font("Helvetica").fillColor(C.gray500)
+        .text(descText, TEXT_X, ty, { width: TEXT_W, height: 36, ellipsis: true });
+      ty += 36 + 10;
     }
 
     // Price
     if (priceText) {
-      doc.fontSize(28).font("Helvetica-Bold").fillColor(C.gray900)
-        .text(priceText, TEXT_X, ty, { width: TEXT_W, lineBreak: false, height: 36 });
-      ty += 36 + 14;
+      doc.fontSize(20).font("Helvetica-Bold").fillColor(C.gray900)
+        .text(priceText, TEXT_X, ty, { width: TEXT_W, lineBreak: false, height: 28 });
+      ty += 28 + 10;
     }
 
     // Barcode image
@@ -257,15 +257,15 @@ export async function generateProductPDF(
       const barBuf = barcodeBuffers.get(i);
       if (barBuf) {
         try {
-          doc.image(barBuf, TEXT_X, ty, { width: 160, height: 40 });
+          doc.image(barBuf, TEXT_X, ty, { width: 130, height: 35 });
         } catch { /* skip */ }
       }
-      ty += 44;
+      ty += 38;
 
       // Barcode number below
-      doc.fontSize(8).font("Helvetica").fillColor(C.gray700)
+      doc.fontSize(7).font("Helvetica").fillColor(C.gray700)
         .text(barcodeText, TEXT_X, ty, {
-          width: 160, align: "center", lineBreak: false, height: 10,
+          width: 130, align: "center", lineBreak: false, height: 9,
           characterSpacing: 1,
         });
     }
