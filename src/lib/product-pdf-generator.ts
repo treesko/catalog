@@ -41,6 +41,7 @@ const RX_NAME     = /^(name|title|product|product_name|product_title|label)$/i;
 const RX_PRICE    = /^(price|cost|amount|retail_price|sale_price|unit_price|msrp)$/i;
 const RX_DESC     = /^(description|desc|details|summary|about|info)$/i;
 const RX_BARCODE  = /^(barcode|ean|upc|sku|gtin|code|barcode_number)$/i;
+const RX_SHIFRA   = /^(shifra|product_code|item_code|article)$/i;
 
 export function classifyProductColumns(row: Record<string, unknown>): {
   photoColumn: string | null;
@@ -118,10 +119,11 @@ export async function generateProductPDF(
   });
 
   // Classify columns
-  const catCol   = textColumns.find(c => RX_CATEGORY.test(c)) ?? null;
-  const nameCol  = textColumns.find(c => RX_NAME.test(c)) ?? null;
-  const priceCol = textColumns.find(c => RX_PRICE.test(c)) ?? null;
-  const descCol  = textColumns.find(c => RX_DESC.test(c)) ?? null;
+  const catCol    = textColumns.find(c => RX_CATEGORY.test(c)) ?? null;
+  const nameCol   = textColumns.find(c => RX_NAME.test(c)) ?? null;
+  const priceCol  = textColumns.find(c => RX_PRICE.test(c)) ?? null;
+  const descCol   = textColumns.find(c => RX_DESC.test(c)) ?? null;
+  const shifraCol = textColumns.find(c => RX_SHIFRA.test(c)) ?? null;
 
   let pageNum = 0;
 
@@ -135,10 +137,6 @@ export async function generateProductPDF(
     // Horizontal mid-page divider
     doc.moveTo(0, CARD_H).lineTo(PW, CARD_H)
       .strokeColor(C.gray200).lineWidth(1).stroke();
-
-    // Vertical divider between image and text
-    doc.moveTo(LEFT_W, 0).lineTo(LEFT_W, PH)
-      .strokeColor(C.gray200).lineWidth(0.5).stroke();
 
     // Page number
     doc.fontSize(7).font("Helvetica").fillColor(C.gray500)
@@ -192,9 +190,10 @@ export async function generateProductPDF(
     }
 
     // ── Text panel ───────────────────────────────────────────────────────────
-    const nameText  = nameCol  && product[nameCol]  ? String(product[nameCol])  : "";
-    const descText  = descCol  && product[descCol]  ? String(product[descCol])  : "";
-    const priceText = priceCol && product[priceCol] != null ? formatPrice(product[priceCol]) : "";
+    const nameText   = nameCol  && product[nameCol]  ? String(product[nameCol])  : "";
+    const shifraText = shifraCol && product[shifraCol] != null ? String(product[shifraCol]) : "";
+    const descText   = descCol  && product[descCol]  ? String(product[descCol])  : "";
+    const priceText  = priceCol && product[priceCol] != null ? formatPrice(product[priceCol]) : "";
     const barcodeText = barcodeCol && product[barcodeCol] ? String(product[barcodeCol]) : "";
 
     // Measure name height at correct font
@@ -203,13 +202,14 @@ export async function generateProductPDF(
       ? Math.min(doc.heightOfString(nameText, { width: TEXT_W }), 16 * 3)
       : 0;
 
-    const badgeH  = catCol ? 18 + 10 : 0;
-    const sepH    = 10;
-    const descH   = descText ? 36 : 0;
+    const badgeH   = catCol ? 18 + 10 : 0;
+    const shifraH  = shifraText ? 14 : 0;
+    const sepH     = 10;
+    const descH    = descText ? 36 : 0;
     const priceH  = priceText ? 28 + 10 : 0;
     const barcodeImgH = barcodeText ? 38 : 0;
     const barcodeNumH = barcodeText ? 12 : 0;
-    const totalH = badgeH + nameH + 10 + sepH + descH + (descText ? 10 : 0) + priceH + barcodeImgH + barcodeNumH;
+    const totalH = badgeH + nameH + shifraH + 10 + sepH + descH + (descText ? 10 : 0) + priceH + barcodeImgH + barcodeNumH;
 
     let ty = cardY + Math.max(20, (CARD_H - totalH) / 2);
 
@@ -231,7 +231,16 @@ export async function generateProductPDF(
     if (nameText) {
       doc.fontSize(16).font("Helvetica-Bold").fillColor(C.gray900)
         .text(nameText, TEXT_X, ty, { width: TEXT_W, height: 16 * 3, ellipsis: true });
-      ty += nameH + 10;
+      ty += nameH + 4;
+    }
+
+    // Shifra (product code)
+    if (shifraText) {
+      doc.fontSize(8).font("Helvetica").fillColor(C.gray500)
+        .text(`Shifra: ${shifraText}`, TEXT_X, ty, { width: TEXT_W, lineBreak: false, height: 10 });
+      ty += 14;
+    } else {
+      ty += 6;
     }
 
     // Separator
