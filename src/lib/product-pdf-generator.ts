@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import path from "path";
 import fs from "fs";
 import sharp from "sharp";
+import { hyphenateSync } from "hyphen/en";
 
 export interface ProductPDFOptions {
   title: string;
@@ -205,8 +206,9 @@ export async function generateProductPDF(
     if (descText) {
       // Limit description height so it doesn't overlap price section
       const maxDescH = (slotY + TY_PRICE_LABEL) - descY - 4;
+      const hyphenated = hyphenateSync(descText, { hyphenChar: "\u00AD" });
       doc.fontSize(10.52).font("Roboto").fillColor(C.gray)
-        .text(descText, TEXT_X, descY, {
+        .text(hyphenated, TEXT_X, descY, {
           width: TEXT_W, lineGap: 2.48, height: Math.max(maxDescH, 13), ellipsis: true,
         });
     }

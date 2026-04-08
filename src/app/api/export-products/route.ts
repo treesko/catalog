@@ -34,30 +34,33 @@ async function fetchImageBuffers(
         return;
       }
 
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(timeout);
-        if (!response.ok) return;
-        const rawBuf = Buffer.from(await response.arrayBuffer());
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 15000);
+          const response = await fetch(url, { signal: controller.signal });
+          clearTimeout(timeout);
+          if (!response.ok) continue;
+          const rawBuf = Buffer.from(await response.arrayBuffer());
 
-        // Validate image and ensure PDFKit-compatible format (JPEG or PNG)
-        const metadata = await sharp(rawBuf).metadata();
-        if (!metadata.width || !metadata.height) return;
+          // Validate image and ensure PDFKit-compatible format (JPEG or PNG)
+          const metadata = await sharp(rawBuf).metadata();
+          if (!metadata.width || !metadata.height) break;
 
-        let buf: Buffer;
-        if (metadata.format === "jpeg") {
-          buf = rawBuf;
-        } else {
-          // Convert to PNG and flatten alpha to white background for PDFKit compatibility
-          buf = await sharp(rawBuf).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer();
+          let buf: Buffer;
+          if (metadata.format === "jpeg") {
+            buf = rawBuf;
+          } else {
+            // Convert to PNG and flatten alpha to white background for PDFKit compatibility
+            buf = await sharp(rawBuf).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer();
+          }
+
+          imageCache.set(url, buf);
+          buffers.set(index, buf);
+          break;
+        } catch {
+          // Retry once, then show placeholder
         }
-
-        imageCache.set(url, buf);
-        buffers.set(index, buf);
-      } catch {
-        // Placeholder shown in PDF for failed/slow images
       }
     })
   );
