@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import sharp from "sharp";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateProductPDF, classifyProductColumns } from "@/lib/product-pdf-generator";
 
@@ -35,11 +36,24 @@ async function fetchImageBuffers(
 
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 2000);
+        const timeout = setTimeout(() => controller.abort(), 8000);
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeout);
         if (!response.ok) return;
-        const buf = Buffer.from(await response.arrayBuffer());
+        const rawBuf = Buffer.from(await response.arrayBuffer());
+
+        // Validate image and ensure PDFKit-compatible format (JPEG or PNG)
+        const metadata = await sharp(rawBuf).metadata();
+        if (!metadata.width || !metadata.height) return;
+
+        let buf: Buffer;
+        if (metadata.format === "jpeg") {
+          buf = rawBuf;
+        } else {
+          // Convert to PNG and flatten alpha to white background for PDFKit compatibility
+          buf = await sharp(rawBuf).flatten({ background: { r: 255, g: 255, b: 255 } }).png().toBuffer();
+        }
+
         imageCache.set(url, buf);
         buffers.set(index, buf);
       } catch {

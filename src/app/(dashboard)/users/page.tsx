@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Shield, ShieldCheck, User } from "lucide-react";
+import { Plus, Trash2, Pencil, Shield, ShieldCheck, User } from "lucide-react";
 import { ROLES } from "@/types";
 import { useSession } from "@/components/layout/SessionProvider";
 import { formatDate } from "@/lib/utils";
@@ -14,12 +14,22 @@ interface UserRow {
   created_at: string;
 }
 
+interface EditForm {
+  username: string;
+  password: string;
+  access: string;
+}
+
 export default function UsersPage() {
   const session = useSession();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editUser, setEditUser] = useState<UserRow | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ username: "", password: "", access: "3" });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
 
   function fetchUsers() {
     setLoading(true);
@@ -43,6 +53,44 @@ export default function UsersPage() {
     } finally {
       setDeleting(false);
       setDeleteId(null);
+    }
+  }
+
+  function openEdit(user: UserRow) {
+    setEditUser(user);
+    setEditForm({ username: user.username, password: "", access: String(user.access) });
+    setEditError("");
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editUser) return;
+    setEditLoading(true);
+    setEditError("");
+    try {
+      const body: Record<string, unknown> = {
+        username: editForm.username,
+        access: parseInt(editForm.access),
+      };
+      if (editForm.password) body.password = editForm.password;
+
+      const res = await fetch(`/api/users/${editUser.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setEditError(data.error || "Failed to update user");
+        return;
+      }
+      const updated = await res.json();
+      setUsers(users.map((u) => (u.id === updated.id ? updated : u)));
+      setEditUser(null);
+    } catch {
+      setEditError("Something went wrong");
+    } finally {
+      setEditLoading(false);
     }
   }
 
@@ -102,13 +150,22 @@ export default function UsersPage() {
                   </div>
                 </div>
                 {user.id !== session.userId ? (
-                  <button
-                    onClick={() => setDeleteId(user.id)}
-                    className="p-2 rounded-lg text-slate-muted hover:text-terracotta hover:bg-terracotta-light transition-all duration-200"
-                    title="Delete user"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openEdit(user)}
+                      className="p-2 rounded-lg text-slate-muted hover:text-emerald-deep hover:bg-emerald-deep/10 transition-all duration-200"
+                      title="Edit user"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(user.id)}
+                      className="p-2 rounded-lg text-slate-muted hover:text-terracotta hover:bg-terracotta-light transition-all duration-200"
+                      title="Delete user"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 ) : (
                   <span className="text-xs text-sand italic">You</span>
                 )}
@@ -158,13 +215,22 @@ export default function UsersPage() {
                     <td className="text-sm text-slate-muted">{formatDate(user.created_at)}</td>
                     <td>
                       {user.id !== session.userId ? (
-                        <button
-                          onClick={() => setDeleteId(user.id)}
-                          className="p-2 rounded-lg text-slate-muted hover:text-terracotta hover:bg-terracotta-light transition-all duration-200"
-                          title="Delete user"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEdit(user)}
+                            className="p-2 rounded-lg text-slate-muted hover:text-emerald-deep hover:bg-emerald-deep/10 transition-all duration-200"
+                            title="Edit user"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteId(user.id)}
+                            className="p-2 rounded-lg text-slate-muted hover:text-terracotta hover:bg-terracotta-light transition-all duration-200"
+                            title="Delete user"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       ) : (
                         <span className="text-xs text-sand italic">You</span>
                       )}
@@ -198,6 +264,65 @@ export default function UsersPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Edit modal */}
+      {editUser && (
+        <div className="modal-backdrop">
+          <form onSubmit={handleEdit} className="card p-6 max-w-sm w-full mx-4 animate-scale-in space-y-4">
+            <h3 className="text-lg font-semibold text-charcoal">Edit User</h3>
+
+            {editError && (
+              <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-terracotta-light border border-orange-200">
+                <span className="text-sm text-terracotta font-medium">{editError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-light uppercase tracking-wider mb-2">Username</label>
+              <input
+                type="text"
+                value={editForm.username}
+                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                className="input-field"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-light uppercase tracking-wider mb-2">New Password</label>
+              <input
+                type="password"
+                value={editForm.password}
+                onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                className="input-field"
+                placeholder="Leave blank to keep current"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-light uppercase tracking-wider mb-2">Role</label>
+              <select
+                value={editForm.access}
+                onChange={(e) => setEditForm({ ...editForm, access: e.target.value })}
+                className="input-field"
+              >
+                <option value="1">Admin</option>
+                <option value="2">Manager</option>
+                <option value="3">Seller</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button type="submit" disabled={editLoading} className="btn-primary flex-1 justify-center">
+                {editLoading ? "Saving..." : "Save"}
+              </button>
+              <button type="button" onClick={() => setEditUser(null)} className="btn-secondary flex-1 justify-center">
+                Cancel
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

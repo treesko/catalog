@@ -1,5 +1,7 @@
 import PDFDocument from "pdfkit";
-import bwipjs from "bwip-js";
+import path from "path";
+import fs from "fs";
+import sharp from "sharp";
 
 export interface ProductPDFOptions {
   title: string;
@@ -9,38 +11,74 @@ export interface ProductPDFOptions {
   textColumns: string[];
 }
 
-// ─── Design Tokens ────────────────────────────────────────────────────────────
+// ─── SVG cover/back page paths ───────────────────────────────────────────────
+const ASSETS_DIR = path.join(process.cwd(), "src", "assets");
+
+async function svgToBuffer(filename: string): Promise<Buffer> {
+  const svgBuf = fs.readFileSync(path.join(ASSETS_DIR, filename));
+  // Render at 3x for crisp output (A4 = 595x842 pts, render at ~1786x2526 px)
+  return sharp(svgBuf, { density: 216 }).png().toBuffer();
+}
+
+// ─── Colors (from SVG template) ──────────────────────────────────────────────
 const C = {
-  black:      "#0f172a",
-  white:      "#ffffff",
-  gray900:    "#111827",
-  gray700:    "#374151",
-  gray500:    "#6b7280",
-  gray200:    "#e5e7eb",
-  gray100:    "#f3f4f6",
-  green:      "#16a34a",
-  badgeBg:    "#f0fdf4",
-  badgeText:  "#15803d",
+  black:       "#1a1c1d",
+  white:       "#ffffff",
+  blue:        "#1b4688",
+  gray:        "#888888",
+  grayLight:   "#b8b8b8",
+  borderOuter: "#888888",
+  borderInner: "#f2f2f2",
+  divider:     "#c6c6c6",
+  placeholder: "#077777",
 };
 
-// ─── Page & Layout ────────────────────────────────────────────────────────────
-const PW      = 595.28;
-const PH      = 841.89;
-const CARD_H  = PH / 2;          // two equal halves per page
+// ─── Page & Layout (exact SVG coordinates) ───────────────────────────────────
+const PW = 595.28;
+const PH = 841.89;
 
-const LEFT_W  = 397;             // image column width (2/3 of page)
-const GUTTER  = 18;              // gap between image and text
-const TEXT_X  = LEFT_W + GUTTER;
-const TEXT_W  = PW - TEXT_X - 20;
+// Slot offset between top and bottom card
+const SLOT_OFFSET = 428.77;
 
-// ─── Column Heuristics ────────────────────────────────────────────────────────
+// Image area
+const IMG_X = 30.73;
+const IMG_Y_SLOT0 = 31.99;
+const IMG_W = 297.81;
+const IMG_H = 350.28;
+
+// Text column
+const TEXT_X = 356.2;
+const TEXT_W = PW - TEXT_X - 31; // ~208pt text width (to inner margin)
+
+// Divider
+const DIVIDER_Y = 428.02;
+const DIVIDER_X1 = 31.2;
+const DIVIDER_X2 = 564.42;
+
+// Inner margin rect
+const MARGIN_X = 31.18;
+const MARGIN_Y = 31.18;
+const MARGIN_W = 564.09 - 31.18;
+const MARGIN_H = 810.71 - 31.18;
+
+// Text Y offsets relative to slot top (slotY = IMG_Y_SLOT0 for slot 0)
+const TY_CATEGORY    = 0;        // starts at top margin
+const TY_NAME        = 18;       // after category (9pt + 9pt gap)
+const TY_DESCRIPTION = 60;       // after name area
+const TY_PRICE_LABEL = 302;      // near bottom
+const TY_PRICE_VALUE = 314;      // below price label
+const TY_SHIFRA      = 339;      // below price, at bottom margin limit for slot 1
+
+// ─── Font paths ──────────────────────────────────────────────────────────────
+const FONTS_DIR = path.join(process.cwd(), "src", "fonts");
+
+// ─── Column Heuristics ───────────────────────────────────────────────────────
 const RX_IMG_EXT  = /\.(jpg|jpeg|png|gif|webp|avif|bmp)(\?.*)?$/i;
 const RX_IMG_KEY  = /^(image|photo|img|picture|thumbnail|avatar|logo|cover|banner)$/i;
 const RX_CATEGORY = /^(category|type|group|department|section|subcategory)$/i;
 const RX_NAME     = /^(name|title|product|product_name|product_title|label)$/i;
 const RX_PRICE    = /^(price|cost|amount|retail_price|sale_price|unit_price|msrp)$/i;
 const RX_DESC     = /^(description|desc|details|summary|about|info)$/i;
-const RX_BARCODE  = /^(barcode|ean|upc|sku|gtin|code|barcode_number)$/i;
 const RX_SHIFRA   = /^(shifra|product_code|item_code|article)$/i;
 
 export function classifyProductColumns(row: Record<string, unknown>): {
@@ -62,52 +100,17 @@ export function classifyProductColumns(row: Record<string, unknown>): {
   return { photoColumn, textColumns };
 }
 
-// ─── Barcode Generator ────────────────────────────────────────────────────────
-async function makeBarcodeBuffer(text: string): Promise<Buffer | null> {
-  try {
-    return await bwipjs.toBuffer({
-      bcid:        "code128",
-      text,
-      scale:       2,
-      height:      12,       // bar height in mm
-      includetext: false,    // we draw the number ourselves
-      backgroundcolor: "ffffff",
-    });
-  } catch {
-    return null;
-  }
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function formatPrice(value: unknown): string {
   const n = typeof value === "number" ? value : parseFloat(String(value ?? ""));
-  return isNaN(n) ? String(value ?? "") : `$${n.toFixed(2)}`;
+  return isNaN(n) ? String(value ?? "") : `${n.toFixed(2)}€`;
 }
 
-function drawDivider(doc: InstanceType<typeof PDFDocument>, x: number, y: number, w: number) {
-  doc.moveTo(x, y).lineTo(x + w, y).strokeColor(C.gray200).lineWidth(0.5).stroke();
-}
-
-// ─── Main Export ──────────────────────────────────────────────────────────────
+// ─── Main Export ─────────────────────────────────────────────────────────────
 export async function generateProductPDF(
   options: ProductPDFOptions
 ): Promise<InstanceType<typeof PDFDocument>> {
   const { title, products, imageBuffers, photoColumn, textColumns } = options;
-
-  // Pre-generate all barcodes in parallel
-  const barcodeCol = textColumns.find(c => RX_BARCODE.test(c)) ?? null;
-  const barcodeBuffers = new Map<number, Buffer>();
-
-  if (barcodeCol) {
-    await Promise.all(
-      products.map(async (p, i) => {
-        const code = String(p[barcodeCol] ?? "").trim();
-        if (!code) return;
-        const buf = await makeBarcodeBuffer(code);
-        if (buf) barcodeBuffers.set(i, buf);
-      })
-    );
-  }
 
   const doc = new PDFDocument({
     size: "A4",
@@ -115,8 +118,14 @@ export async function generateProductPDF(
     margins: { top: 0, bottom: 0, left: 0, right: 0 },
     bufferPages: false,
     autoFirstPage: false,
-    info: { Title: title, Author: "PDF Export Server", CreationDate: new Date() },
+    info: { Title: title, Author: "Catallogu", CreationDate: new Date() },
   });
+
+  // Register Roboto fonts
+  doc.registerFont("Roboto",               path.join(FONTS_DIR, "Roboto-Regular.ttf"));
+  doc.registerFont("Roboto-Bold",          path.join(FONTS_DIR, "Roboto-Bold.ttf"));
+  doc.registerFont("Roboto-Black",         path.join(FONTS_DIR, "Roboto-Black.ttf"));
+  doc.registerFont("RobotoCondensed-Bold", path.join(FONTS_DIR, "RobotoCondensed-Bold.ttf"));
 
   // Classify columns
   const catCol    = textColumns.find(c => RX_CATEGORY.test(c)) ?? null;
@@ -125,174 +134,116 @@ export async function generateProductPDF(
   const descCol   = textColumns.find(c => RX_DESC.test(c)) ?? null;
   const shifraCol = textColumns.find(c => RX_SHIFRA.test(c)) ?? null;
 
-  let pageNum = 0;
-
-  function newPage() {
+  function drawPageFrame() {
     doc.addPage();
-    pageNum++;
 
     // White background
     doc.rect(0, 0, PW, PH).fill(C.white);
 
-    // Horizontal mid-page divider
-    doc.moveTo(0, CARD_H).lineTo(PW, CARD_H)
-      .strokeColor(C.gray200).lineWidth(1).stroke();
-
-    // Page number
-    doc.fontSize(7).font("Helvetica").fillColor(C.gray500)
-      .text(String(pageNum), PW - 40, PH - 16, {
-        width: 24, align: "right", lineBreak: false, height: 10,
-      });
+    // Mid-page divider — stroke #c6c6c6
+    doc.moveTo(DIVIDER_X1, DIVIDER_Y).lineTo(DIVIDER_X2, DIVIDER_Y)
+      .strokeColor(C.divider).lineWidth(1).stroke();
   }
 
-  // ── Title Page ────────────────────────────────────────────────────────────
+  // ── Cover Page (from SVG) ───────────────────────────────────────────────────
+  const firstPageBuf = await svgToBuffer("first.svg");
   doc.addPage();
-  pageNum++;
-  doc.rect(0, 0, PW, PH).fill(C.white);
+  doc.image(firstPageBuf, 0, 0, { width: PW, height: PH });
 
-  doc.fontSize(30).font("Helvetica-Bold").fillColor(C.black)
-    .text(title, 60, PH / 3, { width: PW - 120, lineBreak: false, height: 38 });
-
-  doc.rect(60, PH / 3 + 46, 50, 3).fill(C.green);
-
-  doc.fontSize(12).font("Helvetica").fillColor(C.gray500)
-    .text(
-      `${products.length} product${products.length !== 1 ? "s" : ""}  ·  ` +
-      new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }),
-      60, PH / 3 + 60,
-      { width: PW - 120, lineBreak: false, height: 16 }
-    );
-
-  // ── Product Pages ─────────────────────────────────────────────────────────
+  // ── Product Pages ──────────────────────────────────────────────────────────
   for (let i = 0; i < products.length; i++) {
     const slot = i % 2;
-    if (slot === 0) newPage();
+    if (slot === 0) drawPageFrame();
 
-    const cardY = slot * CARD_H;
+    const slotY = IMG_Y_SLOT0 + slot * SLOT_OFFSET;
     const product = products[i];
 
     // ── Product image ────────────────────────────────────────────────────────
     const buf = imageBuffers.get(i);
-    const imgPad  = 20;
-    const imgMaxW = LEFT_W - imgPad * 2;
-    const imgMaxH = CARD_H - imgPad * 2;
 
     if (buf) {
       try {
-        doc.image(buf, imgPad, cardY + imgPad, {
-          fit: [imgMaxW, imgMaxH], align: "center", valign: "center",
+        doc.image(buf, IMG_X, slotY, {
+          fit: [IMG_W, IMG_H], align: "center", valign: "center",
         });
       } catch {
-        drawNoImage(doc, imgPad, cardY + imgPad, imgMaxW, imgMaxH);
+        // Fallback: teal placeholder
+        doc.rect(IMG_X, slotY, IMG_W, IMG_H).fill(C.placeholder);
       }
     } else {
-      drawNoImage(doc, imgPad, cardY + imgPad, imgMaxW, imgMaxH);
+      doc.rect(IMG_X, slotY, IMG_W, IMG_H).fill(C.placeholder);
     }
 
     // ── Text panel ───────────────────────────────────────────────────────────
-    const nameText   = nameCol  && product[nameCol]  ? String(product[nameCol])  : "";
-    const shifraText = shifraCol && product[shifraCol] != null ? String(product[shifraCol]) : "";
-    const descText   = descCol  && product[descCol]  ? String(product[descCol])  : "";
-    const priceText  = priceCol && product[priceCol] != null ? formatPrice(product[priceCol]) : "";
-    const barcodeText = barcodeCol && product[barcodeCol] ? String(product[barcodeCol]) : "";
 
-    // Measure name height at correct font
-    doc.fontSize(16).font("Helvetica-Bold");
-    const nameH = nameText
-      ? Math.min(doc.heightOfString(nameText, { width: TEXT_W }), 16 * 3)
-      : 0;
-
-    const badgeH   = catCol ? 18 + 10 : 0;
-    const shifraH  = shifraText ? 14 : 0;
-    const sepH     = 10;
-    const descH    = descText ? 36 : 0;
-    const priceH  = priceText ? 28 + 10 : 0;
-    const barcodeImgH = barcodeText ? 38 : 0;
-    const barcodeNumH = barcodeText ? 12 : 0;
-    const totalH = badgeH + nameH + shifraH + 10 + sepH + descH + (descText ? 10 : 0) + priceH + barcodeImgH + barcodeNumH;
-
-    let ty = cardY + Math.max(20, (CARD_H - totalH) / 2);
-
-    // Category badge
+    // Category — Roboto Condensed Bold 9px, #1b4688, UPPERCASE
     if (catCol && product[catCol]) {
       const catText = String(product[catCol]).toUpperCase();
-      doc.fontSize(6.5).font("Helvetica-Bold");
-      const badgeW = Math.min(doc.widthOfString(catText) + 18, TEXT_W);
-
-      doc.roundedRect(TEXT_X, ty, badgeW, 18, 3).fill(C.badgeBg);
-      doc.fillColor(C.badgeText)
-        .text(catText, TEXT_X + 9, ty + 5.5, {
-          width: badgeW - 18, lineBreak: false, height: 8, characterSpacing: 0.5,
+      doc.fontSize(9).font("RobotoCondensed-Bold").fillColor(C.blue)
+        .text(catText, TEXT_X, slotY + TY_CATEGORY, {
+          width: TEXT_W, lineBreak: false, height: 11,
         });
-      ty += 18 + 10;
     }
 
-    // Product name
+    // Product name — Roboto Black 17px, black, line-height ~23px
+    const nameText = nameCol && product[nameCol] ? String(product[nameCol]) : "";
+    const nameY = slotY + TY_NAME;
+    let nameH = 0;
     if (nameText) {
-      doc.fontSize(16).font("Helvetica-Bold").fillColor(C.gray900)
-        .text(nameText, TEXT_X, ty, { width: TEXT_W, height: 16 * 3, ellipsis: true });
-      ty += nameH + 4;
-    }
-
-    // Shifra (product code)
-    if (shifraText) {
-      doc.fontSize(8).font("Helvetica").fillColor(C.gray500)
-        .text(`Shifra: ${shifraText}`, TEXT_X, ty, { width: TEXT_W, lineBreak: false, height: 10 });
-      ty += 14;
-    } else {
-      ty += 6;
-    }
-
-    // Separator
-    drawDivider(doc, TEXT_X, ty, TEXT_W);
-    ty += sepH;
-
-    // Description
-    if (descText) {
-      doc.fontSize(8).font("Helvetica").fillColor(C.gray500)
-        .text(descText, TEXT_X, ty, { width: TEXT_W, height: 36, ellipsis: true });
-      ty += 36 + 10;
-    }
-
-    // Price
-    if (priceText) {
-      doc.fontSize(20).font("Helvetica-Bold").fillColor(C.gray900)
-        .text(priceText, TEXT_X, ty, { width: TEXT_W, lineBreak: false, height: 28 });
-      ty += 28 + 10;
-    }
-
-    // Barcode image
-    if (barcodeText) {
-      const barBuf = barcodeBuffers.get(i);
-      if (barBuf) {
-        try {
-          doc.image(barBuf, TEXT_X, ty, { width: 130, height: 35 });
-        } catch { /* skip */ }
-      }
-      ty += 38;
-
-      // Barcode number below
-      doc.fontSize(7).font("Helvetica").fillColor(C.gray700)
-        .text(barcodeText, TEXT_X, ty, {
-          width: 130, align: "center", lineBreak: false, height: 9,
-          characterSpacing: 1,
+      doc.fontSize(17).font("Roboto-Black");
+      nameH = Math.min(doc.heightOfString(nameText, { width: TEXT_W, lineGap: 6 }), 17 * 3);
+      doc.fillColor(C.black)
+        .text(nameText, TEXT_X, nameY, {
+          width: TEXT_W, lineGap: 6, height: 17 * 3, ellipsis: true,
         });
     }
 
-    doc.font("Helvetica");
+    // Description — Roboto Regular 10.52px, #888, line-height ~13px
+    // Positioned dynamically: 6pt gap after product name
+    const descY = nameY + (nameH || 17) + 6;
+    const descText = descCol && product[descCol] ? String(product[descCol]) : "";
+    if (descText) {
+      // Limit description height so it doesn't overlap price section
+      const maxDescH = (slotY + TY_PRICE_LABEL) - descY - 4;
+      doc.fontSize(10.52).font("Roboto").fillColor(C.gray)
+        .text(descText, TEXT_X, descY, {
+          width: TEXT_W, lineGap: 2.48, height: Math.max(maxDescH, 13), ellipsis: true,
+        });
+    }
+
+    // Price label — Roboto Bold 8px, #b8b8b8
+    doc.fontSize(8).font("Roboto-Bold").fillColor(C.grayLight)
+      .text("Price", TEXT_X, slotY + TY_PRICE_LABEL, {
+        width: TEXT_W, lineBreak: false, height: 10,
+      });
+
+    // Price value — Roboto Black 22.19px, #1a1c1d
+    const priceText = priceCol && product[priceCol] != null ? formatPrice(product[priceCol]) : "";
+    if (priceText) {
+      doc.fontSize(22.19).font("Roboto-Black").fillColor(C.black)
+        .text(priceText, TEXT_X, slotY + TY_PRICE_VALUE, {
+          width: TEXT_W, lineBreak: false, height: 28,
+        });
+    }
+
+    // Shifra — Roboto Bold 11px, #b8b8b8 (below price, at bottom of card)
+    const shifraText = shifraCol && product[shifraCol] != null ? String(product[shifraCol]) : "";
+    if (shifraText) {
+      doc.fontSize(11).font("Roboto-Bold").fillColor(C.grayLight)
+        .text(`Shifra : ${shifraText}`, TEXT_X, slotY + TY_SHIFRA, {
+          width: TEXT_W, lineBreak: false, height: 13,
+        });
+    }
+
+    // Reset font
+    doc.font("Roboto");
   }
+
+  // ── Back Page (from SVG) ──────────────────────────────────────────────────
+  const lastPageBuf = await svgToBuffer("last.svg");
+  doc.addPage();
+  doc.image(lastPageBuf, 0, 0, { width: PW, height: PH });
 
   doc.end();
   return doc;
-}
-
-function drawNoImage(
-  doc: InstanceType<typeof PDFDocument>,
-  x: number, y: number, w: number, h: number
-) {
-  doc.rect(x, y, w, h).fill(C.gray100);
-  doc.fontSize(9).font("Helvetica").fillColor(C.gray500)
-    .text("No Image", x, y + h / 2 - 6, {
-      width: w, align: "center", lineBreak: false, height: 12,
-    });
 }
