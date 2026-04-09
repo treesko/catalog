@@ -44,12 +44,19 @@ const SLOT_OFFSET = 428.77;
 // Image area
 const IMG_X = 30.73;
 const IMG_Y_SLOT0 = 31.99;
-const IMG_W = 297.81;
 const IMG_H = 350.28;
+const MARGIN_RIGHT = 31;
 
-// Text column
-const TEXT_X = 356.2;
-const TEXT_W = PW - TEXT_X - 31; // ~208pt text width (to inner margin)
+// Layout presets: [imageWidth, textX, textWidth]
+const CONTENT_W = PW - IMG_X - MARGIN_RIGHT; // total usable width
+const GAP = 28; // gap between image and text
+const LAYOUT_DEFAULT = { imgW: 297.81, textX: 297.81 + IMG_X + GAP, textW: 0 };
+const LAYOUT_50_50   = { imgW: CONTENT_W * 0.5, textX: IMG_X + CONTENT_W * 0.5 + GAP, textW: 0 };
+const LAYOUT_40_60   = { imgW: CONTENT_W * 0.4, textX: IMG_X + CONTENT_W * 0.4 + GAP, textW: 0 };
+// Calculate text widths
+LAYOUT_DEFAULT.textW = PW - LAYOUT_DEFAULT.textX - MARGIN_RIGHT;
+LAYOUT_50_50.textW   = PW - LAYOUT_50_50.textX - MARGIN_RIGHT;
+LAYOUT_40_60.textW   = PW - LAYOUT_40_60.textX - MARGIN_RIGHT;
 
 // Divider
 const DIVIDER_Y = 428.02;
@@ -159,20 +166,45 @@ export async function generateProductPDF(
     const slotY = IMG_Y_SLOT0 + slot * SLOT_OFFSET;
     const product = products[i];
 
+    // ── Choose layout based on description length ─────────────────────────────
+    const descText = descCol && product[descCol] ? String(product[descCol]) : "";
+    const nameText = nameCol && product[nameCol] ? String(product[nameCol]) : "";
+
+    // Measure description height at default width to decide layout
+    let layout = LAYOUT_DEFAULT;
+    if (descText.length > 0) {
+      doc.fontSize(10.52).font("Roboto");
+      const nameY0 = TY_NAME;
+      doc.fontSize(17).font("Roboto-Black");
+      const nameH0 = nameText
+        ? Math.min(doc.heightOfString(nameText, { width: LAYOUT_DEFAULT.textW, lineGap: 6 }), 17 * 3)
+        : 17;
+      const descY0 = nameY0 + nameH0 + 6;
+      const availH = TY_PRICE_LABEL - descY0 - 4;
+      doc.fontSize(10.52).font("Roboto");
+      const neededH = doc.heightOfString(descText, { width: LAYOUT_DEFAULT.textW, lineGap: 2.48 });
+      if (neededH > availH * 1.5) {
+        layout = LAYOUT_40_60;
+      } else if (neededH > availH) {
+        layout = LAYOUT_50_50;
+      }
+    }
+
+    const { imgW, textX, textW } = layout;
+
     // ── Product image ────────────────────────────────────────────────────────
     const buf = imageBuffers.get(i);
 
     if (buf) {
       try {
         doc.image(buf, IMG_X, slotY, {
-          fit: [IMG_W, IMG_H], align: "center", valign: "center",
+          fit: [imgW, IMG_H], align: "center", valign: "center",
         });
       } catch {
-        // Fallback: teal placeholder
-        doc.rect(IMG_X, slotY, IMG_W, IMG_H).fill(C.placeholder);
+        doc.rect(IMG_X, slotY, imgW, IMG_H).fill(C.placeholder);
       }
     } else {
-      doc.rect(IMG_X, slotY, IMG_W, IMG_H).fill(C.placeholder);
+      doc.rect(IMG_X, slotY, imgW, IMG_H).fill(C.placeholder);
     }
 
     // ── Text panel ───────────────────────────────────────────────────────────
@@ -181,50 +213,46 @@ export async function generateProductPDF(
     if (catCol && product[catCol]) {
       const catText = String(product[catCol]).toUpperCase();
       doc.fontSize(9).font("RobotoCondensed-Bold").fillColor(C.blue)
-        .text(catText, TEXT_X, slotY + TY_CATEGORY, {
-          width: TEXT_W, lineBreak: false, height: 11,
+        .text(catText, textX, slotY + TY_CATEGORY, {
+          width: textW, lineBreak: false, height: 11,
         });
     }
 
     // Product name — Roboto Black 17px, black, line-height ~23px
-    const nameText = nameCol && product[nameCol] ? String(product[nameCol]) : "";
     const nameY = slotY + TY_NAME;
     let nameH = 0;
     if (nameText) {
       doc.fontSize(17).font("Roboto-Black");
-      nameH = Math.min(doc.heightOfString(nameText, { width: TEXT_W, lineGap: 6 }), 17 * 3);
+      nameH = Math.min(doc.heightOfString(nameText, { width: textW, lineGap: 6 }), 17 * 3);
       doc.fillColor(C.black)
-        .text(nameText, TEXT_X, nameY, {
-          width: TEXT_W, lineGap: 6, height: 17 * 3, ellipsis: true,
+        .text(nameText, textX, nameY, {
+          width: textW, lineGap: 6, height: 17 * 3, ellipsis: true,
         });
     }
 
     // Description — Roboto Regular 10.52px, #888, line-height ~13px
-    // Positioned dynamically: 6pt gap after product name
     const descY = nameY + (nameH || 17) + 6;
-    const descText = descCol && product[descCol] ? String(product[descCol]) : "";
     if (descText) {
-      // Limit description height so it doesn't overlap price section
       const maxDescH = (slotY + TY_PRICE_LABEL) - descY - 4;
       const hyphenated = hyphenateSync(descText, { hyphenChar: "\u00AD" });
       doc.fontSize(10.52).font("Roboto").fillColor(C.gray)
-        .text(hyphenated, TEXT_X, descY, {
-          width: TEXT_W, lineGap: 2.48, height: Math.max(maxDescH, 13), ellipsis: true,
+        .text(hyphenated, textX, descY, {
+          width: textW, lineGap: 2.48, height: Math.max(maxDescH, 13), ellipsis: true,
         });
     }
 
     // Price label — Roboto Bold 8px, #b8b8b8
     doc.fontSize(8).font("Roboto-Bold").fillColor(C.grayLight)
-      .text("Price", TEXT_X, slotY + TY_PRICE_LABEL, {
-        width: TEXT_W, lineBreak: false, height: 10,
+      .text("Price", textX, slotY + TY_PRICE_LABEL, {
+        width: textW, lineBreak: false, height: 10,
       });
 
     // Price value — Roboto Black 22.19px, #1a1c1d
     const priceText = priceCol && product[priceCol] != null ? formatPrice(product[priceCol]) : "";
     if (priceText) {
       doc.fontSize(22.19).font("Roboto-Black").fillColor(C.black)
-        .text(priceText, TEXT_X, slotY + TY_PRICE_VALUE, {
-          width: TEXT_W, lineBreak: false, height: 28,
+        .text(priceText, textX, slotY + TY_PRICE_VALUE, {
+          width: textW, lineBreak: false, height: 28,
         });
     }
 
@@ -232,8 +260,8 @@ export async function generateProductPDF(
     const shifraText = shifraCol && product[shifraCol] != null ? String(product[shifraCol]) : "";
     if (shifraText) {
       doc.fontSize(11).font("Roboto-Bold").fillColor(C.grayLight)
-        .text(`Shifra : ${shifraText}`, TEXT_X, slotY + TY_SHIFRA, {
-          width: TEXT_W, lineBreak: false, height: 13,
+        .text(`Shifra : ${shifraText}`, textX, slotY + TY_SHIFRA, {
+          width: textW, lineBreak: false, height: 13,
         });
     }
 
